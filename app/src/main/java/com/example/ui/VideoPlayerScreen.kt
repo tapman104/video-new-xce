@@ -19,8 +19,10 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.*
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -32,6 +34,7 @@ import androidx.compose.ui.input.pointer.PointerEvent
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 
 // ─── Lifecycle ────────────────────────────────────────────────────────────────
@@ -56,6 +59,11 @@ import androidx.media3.ui.PlayerView
 // ─── Coroutines ───────────────────────────────────────────────────────────────
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.conflate
+
+// ─── BuildConfig ─────────────────────────────────────────────────────────────────────────────
+import com.example.BuildConfig
+
+private const val SHOW_DEBUG_OVERLAY = false
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Extension
@@ -104,16 +112,19 @@ fun VideoPlayerScreen(viewModel: VideoPlayerViewModel) {
     // NOT in ViewModel — gesture updates never trigger full-screen recomposition.
     val brightnessState             = remember { mutableStateOf<Float?>(null) }
     val volumeState                 = remember { mutableStateOf<Float?>(null) }
-    val subtitleBottomFractionState = remember { mutableStateOf(state.subtitleBottomFraction) }
-    val subtitleTextSizeState       = remember { mutableStateOf(state.subtitleTextSize) }
+    val subtitleState               = SubtitleGestureState(
+        bottomFractionState = remember { mutableStateOf(state.subtitleBottomFraction) },
+        textSizeState       = remember { mutableStateOf(state.subtitleTextSize) },
+        isEditActiveState   = remember { mutableStateOf(false) }
+    )
     val isPinchingState             = remember { mutableStateOf(false) }
     val zoomScaleState              = remember { mutableStateOf(1f) }
     val panXState                   = remember { mutableStateOf(0f) }
     val panYState                   = remember { mutableStateOf(0f) }
 
     // Delegated vars so AndroidView update lambda can read them without .value
-    var subtitleBottomFraction by subtitleBottomFractionState
-    var subtitleTextSize       by subtitleTextSizeState
+    var subtitleBottomFraction by subtitleState.bottomFractionState
+    var subtitleTextSize       by subtitleState.textSizeState
 
     // Updated by Player.Listener inside rememberVideoPlayerController
     var videoWidth  by remember { mutableStateOf(0f) }
@@ -132,7 +143,7 @@ fun VideoPlayerScreen(viewModel: VideoPlayerViewModel) {
                 context.contentResolver.takePersistableUriPermission(
                     it, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
                 )
-            } catch (_: Exception) { }
+            } catch (e: Exception) { VoraLog.player("takePersistableUriPermission failed: ${e.message}") }
             var displayName: String? = null
             try {
                 context.contentResolver.query(
@@ -142,7 +153,7 @@ fun VideoPlayerScreen(viewModel: VideoPlayerViewModel) {
                 )?.use { cursor ->
                     if (cursor.moveToFirst()) displayName = cursor.getString(0)
                 }
-            } catch (_: Exception) { }
+            } catch (e: Exception) { VoraLog.player("contentResolver.query failed: ${e.message}") }
             viewModel.onVideoSelected(it, displayName ?: it.lastPathSegment ?: "Unknown")
         }
     }
@@ -156,8 +167,8 @@ fun VideoPlayerScreen(viewModel: VideoPlayerViewModel) {
         lifecycleOwner              = lifecycleOwner,
         brightnessState             = brightnessState,
         volumeState                 = volumeState,
-        subtitleTextSizeState       = subtitleTextSizeState,
-        subtitleBottomFractionState = subtitleBottomFractionState,
+        subtitleTextSizeState       = subtitleState.textSizeState,
+        subtitleBottomFractionState = subtitleState.bottomFractionState,
         zoomScaleState              = zoomScaleState,
         panXState                   = panXState,
         panYState                   = panYState,
@@ -196,8 +207,7 @@ fun VideoPlayerScreen(viewModel: VideoPlayerViewModel) {
                         state                       = state,
                         brightnessState             = brightnessState,
                         volumeState                 = volumeState,
-                        subtitleBottomFractionState = subtitleBottomFractionState,
-                        subtitleTextSizeState       = subtitleTextSizeState,
+                        subtitleState               = subtitleState,
                         isPinchingState             = isPinchingState,
                         zoomScaleState              = zoomScaleState,
                         panXState                   = panXState,
@@ -281,16 +291,32 @@ fun VideoPlayerScreen(viewModel: VideoPlayerViewModel) {
                         fileName             = state.fileName,
                         resizeMode           = state.resizeMode,
                         orientationMode      = state.orientationMode,
+                        playbackSpeed        = state.playbackSpeed,
                         exoPlayer            = exoPlayer,
                         onTogglePlay         = { viewModel.togglePlayPause() },
                         onPickFile           = { launcher.launch(arrayOf("video/*")) },
                         onToggleLock         = { viewModel.toggleLock(); viewModel.triggerInteraction() },
                         onCycleResizeMode    = { viewModel.cycleResizeMode(); viewModel.triggerInteraction() },
                         onCycleOrientationMode = { viewModel.cycleOrientationMode(); viewModel.triggerInteraction() },
+                        onSetPlaybackSpeed   = { viewModel.setPlaybackSpeed(it); viewModel.triggerInteraction() },
                         onInteract           = { viewModel.triggerInteraction() },
                         onShowAudioTracks    = { showAudioTrackSheet = true; viewModel.triggerInteraction() },
                         onShowSubtitleTracks = { showSubtitleTrackSheet = true; viewModel.triggerInteraction() },
                         showControls         = state.showControls
+                    )
+                }
+
+                // ── Subtitle Edit Highlight ────────────────────────────────────
+                if (subtitleState.isEditActiveState.value) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            .fillMaxHeight(0.15f)
+                            .padding(bottom = (subtitleBottomFraction * configuration.screenHeightDp).dp)
+                            .padding(horizontal = 48.dp)
+                            .background(Color.Transparent)
+                            .border(2.dp, Color.White.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
                     )
                 }
 
@@ -313,13 +339,29 @@ fun VideoPlayerScreen(viewModel: VideoPlayerViewModel) {
                 BrightnessVolumeIndicator(brightnessState, volumeState)
                 ResizeModeIndicator(state.resizeMode, state.resizeModeIndicator)
                 FastForwardBadge(state.playbackSpeed)
+                if (BuildConfig.DEBUG && SHOW_DEBUG_OVERLAY) {
+                    val debugInfo by viewModel.debugInfo.collectAsStateWithLifecycle()
+                    Text(
+                        text = debugInfo.lastGestureEvent,
+                        color = Color.Yellow,
+                        fontSize = 11.sp,
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .statusBarsPadding()
+                            .padding(8.dp)
+                            .background(Color.Black.copy(alpha = 0.5f))
+                            .padding(4.dp)
+                    )
+                }
             }
         }
     }
 
-    // Back: reset resize first, then exit
+    // Back: subtitle edit -> resize reset -> finish
     BackHandler {
-        if (state.resizeMode != ResizeMode.FIT) {
+        if (subtitleState.isEditActiveState.value) {
+            subtitleState.isEditActiveState.value = false
+        } else if (state.resizeMode != ResizeMode.FIT) {
             viewModel.setResizeMode(ResizeMode.FIT)
         } else {
             val activity = context.findActivity()
@@ -368,9 +410,35 @@ private fun rememberVideoPlayerController(
     panYState:                   MutableState<Float>,
     onVideoSizeChanged:          (width: Float, height: Float) -> Unit
 ) {
+    rememberFullscreenEffect(state, subtitleTextSizeState, subtitleBottomFractionState, zoomScaleState, panXState, panYState, context)
+    rememberLifecycleEffect(lifecycleOwner, exoPlayer, viewModel)
+    rememberPlayerReleaseEffect(state, viewModel, exoPlayer)
+    rememberVideoLoadEffect(state, viewModel, exoPlayer)
+    rememberPlayerListenerEffect(exoPlayer, viewModel, context, onVideoSizeChanged)
+    rememberPlaybackSyncEffect(state, exoPlayer)
+    rememberIpcSyncEffects(state, exoPlayer, context, volumeState, brightnessState)
+    rememberSubtitleSyncEffects(subtitleTextSizeState, subtitleBottomFractionState, viewModel)
+    rememberAutoHideEffect(state, viewModel)
+    rememberOrientationEffect(state, context)
+}
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Effect sub-composables
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun rememberFullscreenEffect(
+    state:                       VideoPlayerState,
+    subtitleTextSizeState:       MutableState<Float>,
+    subtitleBottomFractionState: MutableState<Float>,
+    zoomScaleState:              MutableState<Float>,
+    panXState:                   MutableState<Float>,
+    panYState:                   MutableState<Float>,
+    context:                     Context
+) {
     // ── Effect 1: Fullscreen + per-video local state reset ────────────────────
     LaunchedEffect(state.videoUri) {
+        VoraLog.effect("Effect 1: fullscreen + per-video state reset")
         subtitleTextSizeState.value       = state.subtitleTextSize
         subtitleBottomFractionState.value = state.subtitleBottomFraction
         zoomScaleState.value = 1f
@@ -386,14 +454,27 @@ private fun rememberVideoPlayerController(
             controller.show(WindowInsetsCompat.Type.systemBars())
         }
     }
+}
 
+@Composable
+private fun rememberLifecycleEffect(
+    lifecycleOwner: LifecycleOwner,
+    exoPlayer:      ExoPlayer,
+    viewModel:      VideoPlayerViewModel
+) {
     // ── Effect 2: Lifecycle — pause on background, resume on foreground ───────
     // state.isPlaying does NOT change on backgrounding, so reading ViewModel
     // directly on ON_RESUME is the correct pattern.
     DisposableEffect(lifecycleOwner) {
+        VoraLog.effect("Effect 2: lifecycle pause/resume")
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_PAUSE  -> exoPlayer.pause()
+                Lifecycle.Event.ON_PAUSE  -> {
+                    viewModel.uiState.value.videoUri?.let { uri ->
+                        viewModel.savePosition(uri.toString(), exoPlayer.currentPosition)
+                    }
+                    exoPlayer.pause()
+                }
                 Lifecycle.Event.ON_RESUME -> if (viewModel.uiState.value.isPlaying) exoPlayer.play()
                 else -> {}
             }
@@ -401,9 +482,17 @@ private fun rememberVideoPlayerController(
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
+}
 
+@Composable
+private fun rememberPlayerReleaseEffect(
+    state:     VideoPlayerState,
+    viewModel: VideoPlayerViewModel,
+    exoPlayer: ExoPlayer
+) {
     // ── Effect 3: Save position + release player on composable exit ───────────
     DisposableEffect(Unit) {
+        VoraLog.effect("Effect 3: release player + save position")
         onDispose {
             state.videoUri?.let {
                 viewModel.savePosition(it.toString(), exoPlayer.currentPosition)
@@ -411,20 +500,43 @@ private fun rememberVideoPlayerController(
             exoPlayer.release()
         }
     }
+}
 
+@Composable
+private fun rememberVideoLoadEffect(
+    state:     VideoPlayerState,
+    viewModel: VideoPlayerViewModel,
+    exoPlayer: ExoPlayer
+) {
     // ── Effect 4: Load video + restore last playback position ─────────────────
     LaunchedEffect(state.videoUri) {
+        VoraLog.effect("Effect 4: load video + restore position")
         state.videoUri?.let { uri ->
             val lastPosition = viewModel.getLastPosition(uri.toString())
             exoPlayer.setMediaItem(MediaItem.fromUri(uri))
+            exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters
+                .buildUpon()
+                .setPreferredAudioLanguage("en")
+                .setPreferredTextLanguage("en")
+                .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, false)
+                .build()
             exoPlayer.prepare()
             exoPlayer.seekTo(lastPosition)
             exoPlayer.playWhenReady = state.isPlaying
         }
     }
+}
 
+@Composable
+private fun rememberPlayerListenerEffect(
+    exoPlayer:          ExoPlayer,
+    viewModel:          VideoPlayerViewModel,
+    context:            Context,
+    onVideoSizeChanged: (width: Float, height: Float) -> Unit
+) {
     // ── Effect 5: Buffering indicator + auto-orientation from video dimensions ─
     DisposableEffect(exoPlayer) {
+        VoraLog.effect("Effect 5: buffering + video size listener")
         val listener = object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
                 viewModel.setBuffering(playbackState == Player.STATE_BUFFERING)
@@ -442,7 +554,7 @@ private fun rememberVideoPlayerController(
                                     ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
                                 else
                                     ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
-                        } catch (_: Exception) {}
+                        } catch (e: Exception) { VoraLog.player("requestedOrientation failed: ${e.message}") }
                     }
                 }
             }
@@ -450,22 +562,40 @@ private fun rememberVideoPlayerController(
         exoPlayer.addListener(listener)
         onDispose { exoPlayer.removeListener(listener) }
     }
+}
 
+@Composable
+private fun rememberPlaybackSyncEffect(
+    state:     VideoPlayerState,
+    exoPlayer: ExoPlayer
+) {
     // ── Effect 6: Play / pause sync ───────────────────────────────────────────
     LaunchedEffect(state.isPlaying, state.videoUri) {
+        VoraLog.effect("Effect 6: play/pause sync")
         if (state.videoUri != null) {
             if (state.isPlaying) exoPlayer.play() else exoPlayer.pause()
         }
     }
+}
 
+@Composable
+private fun rememberIpcSyncEffects(
+    state:           VideoPlayerState,
+    exoPlayer:       ExoPlayer,
+    context:         Context,
+    volumeState:     MutableState<Float?>,
+    brightnessState: MutableState<Float?>
+) {
     // ── Effect 7: Playback speed sync ─────────────────────────────────────────
     LaunchedEffect(state.playbackSpeed) {
+        VoraLog.effect("Effect 7: playback speed sync")
         exoPlayer.setPlaybackSpeed(state.playbackSpeed)
     }
 
     // ── Effect 8: Volume IPC sync ─────────────────────────────────────────────
     // conflate() + lastWriteTime guard prevent ANR on fast drags.
-    LaunchedEffect(Unit) {
+    LaunchedEffect("volumeSync") {
+        VoraLog.effect("Effect 8: volume IPC sync")
         val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
         val maxVolume    = audioManager.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC).coerceAtLeast(1)
         var lastWriteTime = 0L
@@ -481,14 +611,15 @@ private fun rememberVideoPlayerController(
                             audioManager.setStreamVolume(
                                 android.media.AudioManager.STREAM_MUSIC, index, 0
                             )
-                        } catch (_: Exception) { }
+                        } catch (e: Exception) { VoraLog.player("setStreamVolume failed: ${e.message}") }
                     }
                 }
             }
     }
 
     // ── Effect 9: Brightness IPC sync ─────────────────────────────────────────
-    LaunchedEffect(Unit) {
+    LaunchedEffect("brightnessSync") {
+        VoraLog.effect("Effect 9: brightness IPC sync")
         var lastWriteTime = 0L
         snapshotFlow { brightnessState.value }
             .conflate()
@@ -502,28 +633,44 @@ private fun rememberVideoPlayerController(
                             val lp = window.attributes
                             lp.screenBrightness = brightness.coerceIn(0f, 1f)
                             window.attributes   = lp
-                        } catch (_: Exception) { }
+                        } catch (e: Exception) { VoraLog.player("screenBrightness failed: ${e.message}") }
                     }
                 }
             }
     }
+}
 
+@Composable
+private fun rememberSubtitleSyncEffects(
+    subtitleTextSizeState:       MutableState<Float>,
+    subtitleBottomFractionState: MutableState<Float>,
+    viewModel:                   VideoPlayerViewModel
+) {
     // ── Effect 10: Subtitle text size → ViewModel (config-change survival) ────
-    LaunchedEffect(Unit) {
+    LaunchedEffect("subtitleSizeSync") {
+        VoraLog.effect("Effect 10: subtitle text size sync")
         snapshotFlow { subtitleTextSizeState.value }
             .conflate()
             .collect { viewModel.setSubtitleTextSize(it) }
     }
 
     // ── Effect 11: Subtitle bottom fraction → ViewModel ───────────────────────
-    LaunchedEffect(Unit) {
+    LaunchedEffect("subtitleFractionSync") {
+        VoraLog.effect("Effect 11: subtitle bottom fraction sync")
         snapshotFlow { subtitleBottomFractionState.value }
             .conflate()
             .collect { viewModel.setSubtitleBottomFraction(it) }
     }
+}
 
+@Composable
+private fun rememberAutoHideEffect(
+    state:     VideoPlayerState,
+    viewModel: VideoPlayerViewModel
+) {
     // ── Effect 12: Auto-hide controls after 3 s of inactivity ────────────────
     LaunchedEffect(state.showControls, state.isPlaying, state.isLocked, state.lastInteractionTime) {
+        VoraLog.effect("Effect 12: auto-hide controls")
         if (state.showControls && state.isPlaying) {
             delay(3000)
             val current = viewModel.uiState.value
@@ -532,9 +679,16 @@ private fun rememberVideoPlayerController(
             }
         }
     }
+}
 
+@Composable
+private fun rememberOrientationEffect(
+    state:   VideoPlayerState,
+    context: Context
+) {
     // ── Effect 13: Manual orientation change ──────────────────────────────────
     LaunchedEffect(state.orientationMode) {
+        VoraLog.effect("Effect 13: orientation change")
         if (!state.isOrientationManuallySet) return@LaunchedEffect
         val activity = context.findActivity() ?: return@LaunchedEffect
         if (activity.isFinishing || activity.isDestroyed) return@LaunchedEffect
@@ -544,6 +698,6 @@ private fun rememberVideoPlayerController(
                 OrientationMode.SENSOR    -> ActivityInfo.SCREEN_ORIENTATION_SENSOR
                 OrientationMode.LANDSCAPE -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
             }
-        } catch (_: Exception) { }
+        } catch (e: Exception) { VoraLog.player("requestedOrientation failed: ${e.message}") }
     }
 }

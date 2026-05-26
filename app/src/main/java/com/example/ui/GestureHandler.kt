@@ -19,6 +19,12 @@ import androidx.compose.ui.unit.dp
 // ─── Media3 ───────────────────────────────────────────────────────────────────
 import androidx.media3.exoplayer.ExoPlayer
 
+data class SubtitleGestureState(
+    val bottomFractionState: MutableState<Float>,
+    val textSizeState: MutableState<Float>,
+    val isEditActiveState: MutableState<Boolean>
+)
+
 // ─────────────────────────────────────────────────────────────────────────────
 // videoGestures
 //
@@ -59,9 +65,7 @@ fun Modifier.videoGestures(
     state: VideoPlayerState,
     brightnessState: MutableState<Float?>,
     volumeState: MutableState<Float?>,
-    subtitleBottomFractionState: MutableState<Float>,
-    subtitleTextSizeState: MutableState<Float>,
-    isSubtitleEditActiveState: MutableState<Boolean>,  // NEW — drives subtitle glow UI
+    subtitleState: SubtitleGestureState,
     isPinchingState: MutableState<Boolean>,
     zoomScaleState: MutableState<Float>,
     panXState: MutableState<Float>,
@@ -115,12 +119,12 @@ fun Modifier.videoGestures(
                     (initTouches[0].position - initTouches[1].position).getDistance() else 0f
 
                 val hitboxHalfPx    = with(density) { 24.dp.toPx() }
-                val subtitleCenterY = size.height * (1f - subtitleBottomFractionState.value)
+                val subtitleCenterY = size.height * (1f - subtitleState.bottomFractionState.value)
 
                 when {
                     // ── In subtitle edit mode: any pinch resizes subtitle ──────
-                    isSubtitleEditActiveState.value -> {
-                        handleSubtitlePinch(subtitleTextSizeState = subtitleTextSizeState)
+                    subtitleState.isEditActiveState.value -> {
+                        handleSubtitlePinch(subtitleTextSizeState = subtitleState.textSizeState)
                     }
 
                     // ── Wide spread → zoom + pan ───────────────────────────────
@@ -139,8 +143,8 @@ fun Modifier.videoGestures(
                     initTouches.any { t ->
                         kotlin.math.abs(t.position.y - subtitleCenterY) <= hitboxHalfPx
                     } -> {
-                        isSubtitleEditActiveState.value = true
-                        handleSubtitlePinch(subtitleTextSizeState = subtitleTextSizeState)
+                        subtitleState.isEditActiveState.value = true
+                        handleSubtitlePinch(subtitleTextSizeState = subtitleState.textSizeState)
                     }
 
                     // ── Narrow spread elsewhere → discard ─────────────────────
@@ -173,11 +177,10 @@ fun Modifier.videoGestures(
 
                 // ── Lock gate ─────────────────────────────────────────────────
                 if (getIsLocked()) {
-                    down.consume()
+                    // Do not consume `down` — let the lock button click through.
                     var ev: PointerEvent
                     do {
                         ev = awaitPointerEvent()
-                        ev.changes.forEach { it.consume() }
                     } while (ev.changes.any { it.pressed })
                     return@awaitEachGesture
                 }
@@ -200,7 +203,7 @@ fun Modifier.videoGestures(
                 // Evaluated once from down.position so every routing branch below
                 // can use the same boolean without repeating the math.
                 val hitboxHalfPx    = with(density) { 24.dp.toPx() }
-                val subtitleCenterY = size.height * (1f - subtitleBottomFractionState.value)
+                val subtitleCenterY = size.height * (1f - subtitleState.bottomFractionState.value)
                 val isSubtitleTouch = kotlin.math.abs(down.position.y - subtitleCenterY) <= hitboxHalfPx
 
                 var drag: PointerInputChange? = null
@@ -242,7 +245,7 @@ fun Modifier.videoGestures(
                 // ── Route: long press → 2× speed ─────────────────────────────
                 // Suppressed while in subtitle-edit mode (long press on subtitle
                 // is an unlikely accident, and 2× would be disorienting).
-                if (isLongPress && !isSubtitleEditActiveState.value) {
+                if (isLongPress && !subtitleState.isEditActiveState.value) {
                     handleLongPress(viewModel = viewModel)
                     return@awaitEachGesture
                 }
@@ -251,13 +254,13 @@ fun Modifier.videoGestures(
                 if (drag != null) {
                     when {
                         // In edit mode OR finger started on subtitle → move subtitle
-                        isSubtitleEditActiveState.value || isSubtitleTouch -> {
+                        subtitleState.isEditActiveState.value || isSubtitleTouch -> {
                             // Entering via isSubtitleTouch (not already in edit mode)
                             // implicitly activates edit mode so the UI glow appears.
-                            isSubtitleEditActiveState.value = true
+                            subtitleState.isEditActiveState.value = true
                             handleSubtitleDrag(
                                 drag                        = drag,
-                                subtitleBottomFractionState = subtitleBottomFractionState
+                                subtitleBottomFractionState = subtitleState.bottomFractionState
                             )
                             viewModel.triggerInteraction()
                         }
@@ -296,15 +299,15 @@ fun Modifier.videoGestures(
                         // ── Tap ON subtitle ───────────────────────────────────
                         isSubtitleTouch -> {
                             // Enter (or stay in) edit mode. Do not toggle controls.
-                            isSubtitleEditActiveState.value = true
+                            subtitleState.isEditActiveState.value = true
                         }
 
-                        // ── Tap OFF subtitle while in edit mode ───────────────
-                        isSubtitleEditActiveState.value -> {
+                        // ── Tap OFF subtitle while in edit mode ───────────────────────
+                        subtitleState.isEditActiveState.value -> {
                             // Exit edit mode. Intentionally do not pass through to
                             // controls toggle — the tap was "dismiss edit", not
                             // "show controls". User can tap again for controls.
-                            isSubtitleEditActiveState.value = false
+                            subtitleState.isEditActiveState.value = false
                         }
 
                         // ── Normal tap / double-tap ───────────────────────────
@@ -459,12 +462,14 @@ private suspend fun androidx.compose.ui.input.pointer.AwaitPointerEventScope.han
 private suspend fun androidx.compose.ui.input.pointer.AwaitPointerEventScope.handleLongPress(
     viewModel: VideoPlayerViewModel
 ) {
+    viewModel.logGestureEvent("longPress:2x:start")
     viewModel.setPlaybackSpeed(2f)
     viewModel.triggerInteraction()
     try {
         waitForUpOrCancellation()
     } finally {
         viewModel.setPlaybackSpeed(1f)
+        viewModel.logGestureEvent("longPress:1x:stop")
         viewModel.triggerInteraction()
     }
 }
@@ -563,9 +568,11 @@ private suspend fun androidx.compose.ui.input.pointer.AwaitPointerEventScope.han
         secondDown.consume()
 
         if (secondDown.position.x < size.width / 2) {
+            viewModel.logGestureEvent("doubleTap:left:-10s")
             exoPlayer.seekTo((exoPlayer.currentPosition - 10000).coerceAtLeast(0))
             onDoubleTapSeek(false)
         } else {
+            viewModel.logGestureEvent("doubleTap:right:+10s")
             val dur = if (exoPlayer.duration > 0) exoPlayer.duration else Long.MAX_VALUE
             exoPlayer.seekTo((exoPlayer.currentPosition + 10000).coerceAtMost(dur))
             onDoubleTapSeek(true)

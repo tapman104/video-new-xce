@@ -17,13 +17,21 @@ interface PlaybackDao {
     suspend fun savePosition(playbackPosition: PlaybackPosition)
 }
 
-@Database(entities = [PlaybackPosition::class], version = 1, exportSchema = false)
+private const val DB_VERSION = 1
+
+@Database(entities = [PlaybackPosition::class], version = DB_VERSION, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun playbackDao(): PlaybackDao
 
     companion object {
         @Volatile
         private var INSTANCE: AppDatabase? = null
+
+        init {
+            check(DB_VERSION == 1) {
+                "DB_VERSION is $DB_VERSION — add a Room migration and remove fallbackToDestructiveMigration() before bumping the version."
+            }
+        }
 
         fun getDatabase(context: android.content.Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {

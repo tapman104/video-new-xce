@@ -72,12 +72,14 @@ fun PlayerControls(
     fileName: String?,
     resizeMode: ResizeMode,
     orientationMode: OrientationMode,
+    playbackSpeed: Float,
     exoPlayer: ExoPlayer,
     onTogglePlay: () -> Unit,
     onPickFile: () -> Unit,
     onToggleLock: () -> Unit,
     onCycleResizeMode: () -> Unit,
     onCycleOrientationMode: () -> Unit,
+    onSetPlaybackSpeed: (Float) -> Unit,
     onInteract: () -> Unit,
     onShowAudioTracks: () -> Unit,
     onShowSubtitleTracks: () -> Unit,
@@ -116,6 +118,35 @@ fun PlayerControls(
             IconButton(onClick = onShowSubtitleTracks, modifier = Modifier.size(44.dp)) {
                 Icon(Icons.Default.Subtitles, contentDescription = "Subtitle Tracks",
                     tint = Color.White, modifier = Modifier.size(20.dp))
+            }
+            var showSpeedMenu by remember { mutableStateOf(false) }
+            Box {
+                IconButton(onClick = { showSpeedMenu = true; onInteract() }, modifier = Modifier.size(44.dp)) {
+                    Icon(Icons.Default.Speed, contentDescription = "Playback Speed",
+                        tint = Color.White, modifier = Modifier.size(20.dp))
+                }
+                DropdownMenu(
+                    expanded = showSpeedMenu,
+                    onDismissRequest = { showSpeedMenu = false },
+                    modifier = Modifier.background(MaterialTheme.colorScheme.surface)
+                ) {
+                    val speeds = listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f)
+                    speeds.forEach { speed ->
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = "${speed}x",
+                                    fontWeight = if (speed == playbackSpeed) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (speed == playbackSpeed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                )
+                            },
+                            onClick = {
+                                onSetPlaybackSpeed(speed)
+                                showSpeedMenu = false
+                            }
+                        )
+                    }
+                }
             }
             IconButton(onClick = onToggleLock, modifier = Modifier.size(44.dp)) {
                 Icon(

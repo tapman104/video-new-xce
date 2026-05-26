@@ -12,6 +12,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.ui.VideoPlayerScreen
 import com.example.ui.VideoPlayerViewModel
+import com.example.ui.VoraLog
 import com.example.ui.theme.VoraPlayerTheme
 
 class MainActivity : ComponentActivity() {
@@ -66,7 +67,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             } catch (e: Exception) {
-                // Ignore
+                VoraLog.player("contentResolver.query failed: ${e.message}")
             }
         }
         if (result == null) {
