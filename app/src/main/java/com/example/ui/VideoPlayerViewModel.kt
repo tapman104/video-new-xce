@@ -36,7 +36,7 @@ data class VideoPlayerState(
     val resizeModeIndicator: Boolean = false,
     val fileName: String? = null,
     val isOrientationManuallySet: Boolean = false,
-    val subtitleTextSize: Float = 16f,
+    val subtitleTextSize: Float = 0.065f,
     val subtitleBottomFraction: Float = 0.08f
 )
 
@@ -64,7 +64,7 @@ class VideoPlayerViewModel(application: Application) : AndroidViewModel(applicat
             showControls = true,
             isLocked = false,
             isOrientationManuallySet = false,
-            subtitleTextSize = 16f,
+            subtitleTextSize = 0.065f,
             subtitleBottomFraction = 0.08f
         )
     }

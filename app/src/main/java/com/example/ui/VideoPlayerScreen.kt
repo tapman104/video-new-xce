@@ -264,7 +264,7 @@ fun VideoPlayerScreen(viewModel: VideoPlayerViewModel) {
                             ResizeMode.ZOOM -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
                         }
                         v.subtitleView?.setBottomPaddingFraction(subtitleBottomFraction)
-                        v.subtitleView?.setFixedTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, subtitleTextSize)
+                        v.subtitleView?.setFractionalTextSize(subtitleTextSize)
                     },
                     onRelease = { v -> v.player = null },
                     modifier  = Modifier.fillMaxSize()

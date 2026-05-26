@@ -45,7 +45,7 @@ data class SubtitleGestureState(
 //
 // SUBTITLE_EDIT MODE  (isSubtitleEditActive == true)
 //   • Vertical drag      → move subtitle up / down
-//   • Pinch (any spread) → resize subtitle text (10–36 sp)
+//   • Pinch (any spread) → resize subtitle text (3%–12% of view height)
 //   • Tap anywhere else  → exit SUBTITLE_EDIT mode, return to NORMAL
 //   • All other gestures are suppressed while edit mode is active
 //
@@ -335,7 +335,7 @@ fun Modifier.videoGestures(
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Narrow-spread pinch on the subtitle: scales subtitle text between 10 sp and 36 sp.
+ * Narrow-spread pinch on the subtitle: scales subtitle text between 3% and 12% of view height.
  * Caller is responsible for entering subtitle-edit mode before invoking.
  */
 private suspend fun androidx.compose.ui.input.pointer.AwaitPointerEventScope.handleSubtitlePinch(
@@ -352,7 +352,7 @@ private suspend fun androidx.compose.ui.input.pointer.AwaitPointerEventScope.han
             val prevDist    = (t0.previousPosition - t1.previousPosition).getDistance()
             var zoom = if (prevDist > 0f) (currentDist / prevDist) else 1f
             if (!zoom.isFinite() || zoom.isNaN()) zoom = 1f
-            subtitleTextSizeState.value = (subtitleTextSizeState.value * zoom).coerceIn(10f, 36f)
+            subtitleTextSizeState.value = (subtitleTextSizeState.value * zoom).coerceIn(0.03f, 0.12f)
             event.changes.forEach { if (it.pressed) it.consume() }
         } else if (touches.size == 1) {
             event.changes.forEach { if (it.pressed) it.consume() }
