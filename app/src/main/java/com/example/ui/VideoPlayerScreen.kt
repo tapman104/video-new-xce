@@ -239,7 +239,7 @@ fun VideoPlayerScreen(viewModel: VideoPlayerViewModel) {
                                         android.graphics.Color.WHITE,
                                         android.graphics.Color.TRANSPARENT,
                                         android.graphics.Color.TRANSPARENT,
-                                        androidx.media3.ui.CaptionStyleCompat.EDGE_TYPE_DROP_SHADOW,
+                                        androidx.media3.ui.CaptionStyleCompat.EDGE_TYPE_OUTLINE,
                                         android.graphics.Color.BLACK,
                                         null
                                     )
@@ -518,6 +518,7 @@ private fun rememberVideoLoadEffect(
                 .buildUpon()
                 .setPreferredAudioLanguage("en")
                 .setPreferredTextLanguage("en")
+                .setSelectUndeterminedTextLanguage(true)
                 .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, false)
                 .build()
             exoPlayer.prepare()
