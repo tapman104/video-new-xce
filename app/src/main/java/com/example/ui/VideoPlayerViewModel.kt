@@ -37,7 +37,8 @@ data class VideoPlayerState(
     val fileName: String? = null,
     val isOrientationManuallySet: Boolean = false,
     val subtitleTextSize: Float = 0.065f,
-    val subtitleBottomFraction: Float = 0.08f
+    val subtitleBottomFraction: Float = 0.08f,
+    val isLongPressSpeed: Boolean = false
 )
 
 data class DebugInfo(
@@ -94,7 +95,11 @@ class VideoPlayerViewModel(application: Application) : AndroidViewModel(applicat
 
     fun toggleLock() {
         VoraLog.vm("toggleLock: isLocked=${_uiState.value.isLocked}")
-        _uiState.value = _uiState.value.copy(isLocked = !_uiState.value.isLocked)
+        if (_uiState.value.isLocked) {
+            _uiState.value = _uiState.value.copy(isLocked = false, showControls = true)
+        } else {
+            _uiState.value = _uiState.value.copy(isLocked = true)
+        }
     }
 
     fun setControlsVisible(visible: Boolean) {
@@ -162,6 +167,11 @@ class VideoPlayerViewModel(application: Application) : AndroidViewModel(applicat
     fun setSubtitleBottomFraction(fraction: Float) {
         VoraLog.vm("setSubtitleBottomFraction: fraction=$fraction")
         _uiState.value = _uiState.value.copy(subtitleBottomFraction = fraction)
+    }
+
+    fun setLongPressSpeed(active: Boolean) {
+        VoraLog.vm("setLongPressSpeed: active=$active")
+        _uiState.value = _uiState.value.copy(isLongPressSpeed = active)
     }
 
     fun logGestureEvent(event: String) {

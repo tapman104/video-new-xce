@@ -92,7 +92,8 @@ fun PlayerControls(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(
-                    brush = Brush.verticalGradient(
+                    brush = if (isLocked) Brush.verticalGradient(listOf(Color.Transparent, Color.Transparent))
+                    else Brush.verticalGradient(
                         colors = listOf(Color.Black.copy(alpha = 0.6f), Color.Transparent),
                         startY = 0f,
                         endY = Float.POSITIVE_INFINITY
@@ -103,50 +104,63 @@ fun PlayerControls(
                 .padding(end = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = "▶  ${fileName ?: "Vora Player"}",
-                color = Color.White.copy(alpha = 0.9f),
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.weight(1f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            IconButton(onClick = onShowAudioTracks, modifier = Modifier.size(44.dp)) {
-                Icon(Icons.Default.Audiotrack, contentDescription = "Audio Tracks",
-                    tint = Color.White, modifier = Modifier.size(20.dp))
-            }
-            IconButton(onClick = onShowSubtitleTracks, modifier = Modifier.size(44.dp)) {
-                Icon(Icons.Default.Subtitles, contentDescription = "Subtitle Tracks",
-                    tint = Color.White, modifier = Modifier.size(20.dp))
-            }
-            var showSpeedMenu by remember { mutableStateOf(false) }
-            Box {
-                IconButton(onClick = { showSpeedMenu = true; onInteract() }, modifier = Modifier.size(44.dp)) {
-                    Icon(Icons.Default.Speed, contentDescription = "Playback Speed",
-                        tint = Color.White, modifier = Modifier.size(20.dp))
+            if (!isLocked) {
+                Text(
+                    text = "▶  ${fileName ?: "Vora Player"}",
+                    color = Color.White.copy(alpha = 0.9f),
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                IconButton(onClick = onShowAudioTracks, modifier = Modifier.size(44.dp)) {
+                    Icon(
+                        Icons.Default.Audiotrack, contentDescription = "Audio Tracks",
+                        tint = Color.White, modifier = Modifier.size(20.dp)
+                    )
                 }
-                DropdownMenu(
-                    expanded = showSpeedMenu,
-                    onDismissRequest = { showSpeedMenu = false },
-                    modifier = Modifier.background(MaterialTheme.colorScheme.surface)
-                ) {
-                    val speeds = listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f)
-                    speeds.forEach { speed ->
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    text = "${speed}x",
-                                    fontWeight = if (speed == playbackSpeed) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (speed == playbackSpeed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                                )
-                            },
-                            onClick = {
-                                onSetPlaybackSpeed(speed)
-                                showSpeedMenu = false
-                            }
+                IconButton(onClick = onShowSubtitleTracks, modifier = Modifier.size(44.dp)) {
+                    Icon(
+                        Icons.Default.Subtitles, contentDescription = "Subtitle Tracks",
+                        tint = Color.White, modifier = Modifier.size(20.dp)
+                    )
+                }
+                var showSpeedMenu by remember { mutableStateOf(false) }
+                Box {
+                    IconButton(
+                        onClick = { showSpeedMenu = true; onInteract() },
+                        modifier = Modifier.size(44.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Speed, contentDescription = "Playback Speed",
+                            tint = Color.White, modifier = Modifier.size(20.dp)
                         )
                     }
+                    DropdownMenu(
+                        expanded = showSpeedMenu,
+                        onDismissRequest = { showSpeedMenu = false },
+                        modifier = Modifier.background(MaterialTheme.colorScheme.surface)
+                    ) {
+                        val speeds = listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f)
+                        speeds.forEach { speed ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = "${speed}x",
+                                        fontWeight = if (speed == playbackSpeed) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (speed == playbackSpeed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                    )
+                                },
+                                onClick = {
+                                    onSetPlaybackSpeed(speed)
+                                    showSpeedMenu = false
+                                }
+                            )
+                        }
+                    }
                 }
+            } else {
+                Spacer(modifier = Modifier.weight(1f))
             }
             IconButton(onClick = onToggleLock, modifier = Modifier.size(44.dp)) {
                 Icon(
@@ -252,23 +266,6 @@ fun PlayerControls(
                     }
                 }
             }
-
-        } else {
-
-            // ── Locked state ──────────────────────
-            Box(
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .size(100.dp)
-                    .clip(RoundedCornerShape(50.dp))
-                    .background(Color.Black.copy(alpha = 0.6f)),
-                contentAlignment = Alignment.Center
-            ) {
-                IconButton(onClick = onToggleLock) {
-                    Icon(Icons.Default.Lock, contentDescription = "Locked",
-                        tint = Color.Red, modifier = Modifier.size(48.dp))
-                }
-            }
         }
     }
 }
@@ -350,9 +347,9 @@ fun ResizeModeIndicator(mode: ResizeMode, visible: Boolean) {
 }
 
 @Composable
-fun FastForwardBadge(playbackSpeed: Float) {
+fun FastForwardBadge(playbackSpeed: Float, isLongPressSpeed: Boolean) {
     AnimatedVisibility(
-        visible = playbackSpeed > 1f,
+        visible = playbackSpeed > 1f && isLongPressSpeed,
         enter = fadeIn() + slideInVertically(initialOffsetY = { -it }),
         exit = fadeOut() + slideOutVertically(targetOffsetY = { -it }),
         modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(top = 48.dp)

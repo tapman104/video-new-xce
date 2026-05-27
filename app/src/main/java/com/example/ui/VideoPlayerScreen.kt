@@ -214,6 +214,7 @@ fun VideoPlayerScreen(viewModel: VideoPlayerViewModel) {
                         panYState                   = panYState,
                         videoWidth                  = videoWidth,
                         videoHeight                 = videoHeight,
+                        subtitleTextSize            = state.subtitleTextSize,
                         onDoubleTapSeek             = { isRight ->
                             doubleTapSeekRight = isRight
                             doubleTapSeekTime  = System.currentTimeMillis()
@@ -338,7 +339,7 @@ fun VideoPlayerScreen(viewModel: VideoPlayerViewModel) {
                 DoubleTapSeekOverlay(doubleTapSeekRight, doubleTapSeekTime)
                 BrightnessVolumeIndicator(brightnessState, volumeState)
                 ResizeModeIndicator(state.resizeMode, state.resizeModeIndicator)
-                FastForwardBadge(state.playbackSpeed)
+                FastForwardBadge(state.playbackSpeed, state.isLongPressSpeed)
                 if (BuildConfig.DEBUG && SHOW_DEBUG_OVERLAY) {
                     val debugInfo by viewModel.debugInfo.collectAsStateWithLifecycle()
                     Text(
@@ -670,7 +671,7 @@ private fun rememberAutoHideEffect(
     viewModel: VideoPlayerViewModel
 ) {
     // ── Effect 12: Auto-hide controls after 3 s of inactivity ────────────────
-    LaunchedEffect(state.showControls, state.isPlaying, state.isLocked, state.lastInteractionTime) {
+    LaunchedEffect(state.showControls, state.isPlaying, state.lastInteractionTime) {
         VoraLog.effect("Effect 12: auto-hide controls")
         if (state.showControls && state.isPlaying) {
             delay(3000)
