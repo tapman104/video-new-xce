@@ -58,6 +58,7 @@ import androidx.media3.ui.PlayerView
 
 // ─── Coroutines ───────────────────────────────────────────────────────────────
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.conflate
 
 // ─── BuildConfig ─────────────────────────────────────────────────────────────────────────────
@@ -226,6 +227,9 @@ fun VideoPlayerScreen(viewModel: VideoPlayerViewModel) {
                     )
             ) {
                 // ── Video surface ──────────────────────────────────────────────
+                val screenAspect = remember(configuration) {
+                    configuration.screenWidthDp.toFloat() / configuration.screenHeightDp.toFloat()
+                }
                 AndroidView(
                     factory = { ctx ->
                         PlayerView(ctx).apply {
@@ -253,7 +257,6 @@ fun VideoPlayerScreen(viewModel: VideoPlayerViewModel) {
                         }
                     },
                     update = { v ->
-                        val screenAspect = configuration.screenWidthDp.toFloat() / configuration.screenHeightDp.toFloat()
                         val videoAspect  = if (videoHeight > 0f) (videoWidth / videoHeight) else 1f
 
                         v.resizeMode = when (state.resizeMode) {
@@ -671,14 +674,20 @@ private fun rememberAutoHideEffect(
     viewModel: VideoPlayerViewModel
 ) {
     // ── Effect 12: Auto-hide controls after 3 s of inactivity ────────────────
-    LaunchedEffect(state.showControls, state.isPlaying, state.lastInteractionTime) {
+    // Key only on showControls + isPlaying — coroutine is NOT recreated on every tap.
+    // snapshotFlow watches lastInteractionTime; each new interaction cancels the
+    // pending delay job and restarts a fresh 3 000 ms window.
+    LaunchedEffect(state.showControls, state.isPlaying) {
         VoraLog.effect("Effect 12: auto-hide controls")
         if (state.showControls && state.isPlaying) {
-            delay(3000)
-            val current = viewModel.uiState.value
-            if (current.isPlaying && current.showControls) {
-                viewModel.setControlsVisible(false)
-            }
+            snapshotFlow { viewModel.uiState.value.lastInteractionTime }
+                .collectLatest {
+                    delay(3000)
+                    val current = viewModel.uiState.value
+                    if (current.isPlaying && current.showControls) {
+                        viewModel.setControlsVisible(false)
+                    }
+                }
         }
     }
 }
