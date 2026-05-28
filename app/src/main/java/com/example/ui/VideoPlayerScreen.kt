@@ -57,9 +57,11 @@ import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 
 // ─── Coroutines ───────────────────────────────────────────────────────────────
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.withContext
 
 // ─── BuildConfig ─────────────────────────────────────────────────────────────────────────────
 import com.example.BuildConfig
@@ -189,7 +191,7 @@ fun VideoPlayerScreen(viewModel: VideoPlayerViewModel) {
             .background(Color.Black)
     ) {
         if (state.videoUri == null) {
-            EmptyState(onPickFile = { launcher.launch(arrayOf("video/*")) })
+            EmptyState(onPickFile = { launcher.launch(arrayOf("video/*", "audio/*", "application/octet-stream")) })
 
         } else {
             Box(
@@ -298,7 +300,7 @@ fun VideoPlayerScreen(viewModel: VideoPlayerViewModel) {
                         playbackSpeed        = state.playbackSpeed,
                         exoPlayer            = exoPlayer,
                         onTogglePlay         = { viewModel.togglePlayPause() },
-                        onPickFile           = { launcher.launch(arrayOf("video/*")) },
+                        onPickFile           = { launcher.launch(arrayOf("video/*", "audio/*", "application/octet-stream")) },
                         onToggleLock         = { viewModel.toggleLock(); viewModel.triggerInteraction() },
                         onCycleResizeMode    = { viewModel.cycleResizeMode(); viewModel.triggerInteraction() },
                         onCycleOrientationMode = { viewModel.cycleOrientationMode(); viewModel.triggerInteraction() },
@@ -417,7 +419,7 @@ private fun rememberVideoPlayerController(
     rememberFullscreenEffect(state, subtitleTextSizeState, subtitleBottomFractionState, zoomScaleState, panXState, panYState, context)
     rememberLifecycleEffect(lifecycleOwner, exoPlayer, viewModel)
     rememberPlayerReleaseEffect(state, viewModel, exoPlayer)
-    rememberVideoLoadEffect(state, viewModel, exoPlayer)
+    rememberVideoLoadEffect(state, viewModel, exoPlayer, context)
     rememberPlayerListenerEffect(exoPlayer, viewModel, context, onVideoSizeChanged)
     rememberPlaybackSyncEffect(state, exoPlayer)
     rememberIpcSyncEffects(state, exoPlayer, context, volumeState, brightnessState)
@@ -510,14 +512,25 @@ private fun rememberPlayerReleaseEffect(
 private fun rememberVideoLoadEffect(
     state:     VideoPlayerState,
     viewModel: VideoPlayerViewModel,
-    exoPlayer: ExoPlayer
+    exoPlayer: ExoPlayer,
+    context:   Context
 ) {
     // ── Effect 4: Load video + restore last playback position ─────────────────
     LaunchedEffect(state.videoUri) {
         VoraLog.effect("Effect 4: load video + restore position")
         state.videoUri?.let { uri ->
             val lastPosition = viewModel.getLastPosition(uri.toString())
-            exoPlayer.setMediaItem(MediaItem.fromUri(uri))
+
+            // Content probe: read 12 bytes to detect container format and get MIME hint
+            val sniff = withContext(Dispatchers.IO) { MediaSniffer.sniffMagic(context, uri) }
+            val mediaItem = if (sniff.mimeHint != null) {
+                VoraLog.player("MediaSniffer detected: ${sniff.mimeHint}")
+                MediaItem.Builder().setUri(uri).setMimeType(sniff.mimeHint).build()
+            } else {
+                MediaItem.fromUri(uri)
+            }
+
+            exoPlayer.setMediaItem(mediaItem)
             exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters
                 .buildUpon()
                 .setPreferredAudioLanguage("en")
