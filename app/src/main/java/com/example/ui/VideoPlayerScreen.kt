@@ -52,6 +52,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 // ─── Media3 ───────────────────────────────────────────────────────────────────
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
@@ -95,7 +96,10 @@ fun VideoPlayerScreen(viewModel: VideoPlayerViewModel) {
 
     // ── ExoPlayer ─────────────────────────────────────────────────────────────
     val exoPlayer = remember {
-        ExoPlayer.Builder(context)
+        val renderersFactory = DefaultRenderersFactory(context).apply {
+            setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
+        }
+        ExoPlayer.Builder(context, renderersFactory)
             .setLoadControl(
                 androidx.media3.exoplayer.DefaultLoadControl.Builder()
                     .setBufferDurationsMs(
